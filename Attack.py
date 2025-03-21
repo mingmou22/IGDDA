@@ -11,7 +11,7 @@ from torchvision.transforms import ToPILImage
 import matplotlib.pyplot as plt
 import requests
 from ultralytics import YOLO
-from torchvision.ops import nms  # 导入 nms
+from torchvision.ops import nms  
 import json
 import timm
 import sys
@@ -42,10 +42,10 @@ def load_swin_model(device):
     swin_model = swin_model.to(device)  
 
     preprocess = transforms.Compose([
-        transforms.Resize((256, 256)),      #
-        transforms.CenterCrop(224),         # 
-        transforms.ToTensor(),              # 
-        transforms.Normalize(               # 
+        transforms.Resize((256, 256)),      
+        transforms.CenterCrop(224),        
+        transforms.ToTensor(),              
+        transforms.Normalize(               
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
         ),
@@ -60,10 +60,10 @@ def register_hook(model, layer_name):
 
     def hook(module, input, output):
    
-        features.append(output.detach())  # 
+        features.append(output.detach())   
 
    
-    named_modules = dict([*model.named_modules()])  # 
+    named_modules = dict([*model.named_modules()])   
 
    
     if layer_name in named_modules:
@@ -82,7 +82,7 @@ def extract_swin_features(image, swin_model, preprocess, device, layer_name='fea
      if isinstance(image, Image.Image):  
          image = preprocess(image).unsqueeze(0).to(device)
      elif isinstance(image, torch.Tensor):  
-         if image.dim() == 3:  # 
+         if image.dim() == 3:   
              image = image.unsqueeze(0).to(device)
      else:
          raise TypeError(f"Expected PIL Image or Tensor, but got {type(image)}")
@@ -100,18 +100,18 @@ def extract_swin_features(image, swin_model, preprocess, device, layer_name='fea
 
      
      full_features = features[0]
-     hook_handle.remove()  # 
-     # 
+     hook_handle.remove()   
+      
      full_features.requires_grad_()
 
-     #      if boxes is not None:
+           if boxes is not None:
          roi_features = []
          for box in boxes:
              x1, y1, x2, y2 = map(int, box[:4])
              roi_feature = full_features[:, :, y1:y2, x1:x2]
              roi_features.append(roi_feature)
-         return roi_features  # 
-     return full_features  # 
+         return roi_features   
+     return full_features   
 
 
 
@@ -122,16 +122,16 @@ def get_clip_model(diffusion_model):
 
 
 file_path = 'imagenet_class_index.json'
-# 
+ 
 with open(file_path, 'r') as f:
     labels = json.load(f)
 
 
-# 
+ 
 def get_class_name(class_idx):
-    return labels[str(class_idx)][2]  # 
+    return labels[str(class_idx)][2]   
 
-# 
+ 
 def plot_boxes_on_image(image, boxes):
     if isinstance(image, torch.Tensor):
         image = transforms.ToPILImage()(image.squeeze(0).cpu())
@@ -139,17 +139,17 @@ def plot_boxes_on_image(image, boxes):
     fig, ax = plt.subplots(1)
     ax.imshow(image)
 
-    #
+    
     for box in boxes:
         x1, y1, x2, y2, score = box
         width = x2 - x1
         height = y2 - y1
 
-        #
+        
         rect = patches.Rectangle((x1, y1), width, height, linewidth=2, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
 
-        # 
+         
         ax.text(x1, y1, f'{score:.2f}', fontsize=12, color='red', bbox=dict(facecolor='yellow', alpha=0.5))
 
     plt.show()
@@ -158,26 +158,26 @@ def plot_boxes_on_image(image, boxes):
 def get_yolov5_boxes(ref_image, yolo_model, iou_threshold=0.5):
    
     if isinstance(ref_image, Image.Image):
-        pass  # 
+        pass   
     elif isinstance(ref_image, torch.Tensor):
-        ref_image = transforms.ToPILImage()(ref_image.squeeze(0).cpu())  # 
+        ref_image = transforms.ToPILImage()(ref_image.squeeze(0).cpu())   
        elif isinstance(ref_image, np.ndarray):
         ref_image = Image.fromarray(ref_image)
     else:
         raise ValueError("Expected ref_image to be a PIL.Image object")
-        # 
+         
     print(f"Converted ref_image type: {type(ref_image)}")
 
-    # 
+     
     transform = transforms.ToTensor()
     ref_image = transform(ref_image).unsqueeze(0)
 
-    # 
+     
     device = torch.device("cpu")
     ref_image = ref_image.to(device)
     yolo_model.to(device).eval()
 
-    # 
+     
     with torch.no_grad():
         results = yolo_model(ref_image)
 
@@ -190,7 +190,7 @@ def get_yolov5_boxes(ref_image, yolo_model, iou_threshold=0.5):
         coordinates = boxes.xyxy[0]
         scores = boxes.conf[0] if boxes.conf is not None else torch.ones(coordinates.shape[0], device=device)
 
-        # 
+         
         if scores.dim() == 0:
             scores = scores.unsqueeze(0)
         if coordinates.dim() == 1:
@@ -199,14 +199,14 @@ def get_yolov5_boxes(ref_image, yolo_model, iou_threshold=0.5):
         print(f"Adjusted coordinates shape: {coordinates.shape}")
         print(f"Adjusted scores shape: {scores.shape}")
 
-        #
+        
         boxes_and_scores = torch.cat((coordinates, scores.unsqueeze(1)), dim=1)
 
-        # NMS
+      
         selected_indices = nms(boxes_and_scores[:, :4], boxes_and_scores[:, 4], iou_threshold=iou_threshold)
         selected_boxes = boxes_and_scores[selected_indices]
 
-        # 
+    
         plot_boxes_on_image(ref_image, selected_boxes.cpu().numpy())
 
         return selected_boxes.cpu().numpy()
@@ -218,32 +218,32 @@ def perturbation_on_bounding_boxes(generated_image, boxes, perturb_values, epsil
     print(f"boxes type: {type(boxes)}")
     print(f"boxes value: {boxes}")
     
-    # 
+    
     if not isinstance(boxes, (list, torch.Tensor, np.ndarray)):
         raise ValueError(f"Expected boxes to be a list, tensor, or ndarray, but got {type(boxes)}")
 
-    # 
+  
     if not isinstance(epsilon, float):
         print(f"epsilon type before correction: {type(epsilon)}")
         epsilon = float(epsilon)
         print(f"epsilon corrected to: {epsilon}")
 
-    perturbed_image = generated_image.clone()  # 
+    perturbed_image = generated_image.clone()   
     print(f"Starting loop over boxes with {len(boxes)} elements.")
 
     for i, box in enumerate(boxes):
-        print(f"Processing box {i}: {box}", flush=True)  # 
+        print(f"Processing box {i}: {box}", flush=True)  
 
-        # 
+        
         if isinstance(box, float):
             print(f"Skipping box {i} because it is a float: {box}")
             continue
 
-        # 
+         
         if isinstance(box, torch.Tensor):
-            box = box.tolist()  # 
+            box = box.tolist()   
 
-        # 
+        
         if not isinstance(box, (list, tuple, np.ndarray)):
             raise TypeError(f"Expected box to be a list, tuple, or ndarray, but got {type(box)}: {box}")
         
@@ -251,43 +251,43 @@ def perturbation_on_bounding_boxes(generated_image, boxes, perturb_values, epsil
             print(f"Skipping box {i} due to invalid length: {len(box)}")
             continue
 
-        # 
+        
         x1, y1, x2, y2 = map(int, box[:4])
 
-        # 
+         
         x1, y1, x2, y2 = max(0, x1), max(0, y1), min(generated_image.size(3), x2), min(generated_image.size(2), y2)
 
-        # 
+         
         if x1 >= x2 or y1 >= y2:
             print(f"Invalid box: ({x1}, {y1}, {x2}, {y2}), skipping.")
             continue
 
-        # 
+         
         region = generated_image[:, :, y1:y2, x1:x2]
         
-        # 
+         
         if region.numel() == 0:
             print(f"Skipping empty region for box {i}: ({x1}, {y1}, {x2}, {y2})")
             continue
 
-        # 
+         
         if isinstance(perturb_values, torch.Tensor):
-            # 
+             
             perturb_region = perturb_values[:, :, y1:y2, x1:x2]
             if perturb_region.shape != region.shape:
                 raise ValueError(f"Perturbation values shape mismatch: {perturb_region.shape} vs {region.shape}")
         else:
-            # 
+             
             perturb_region = torch.full_like(region, fill_value=perturb_values, device=device)
 
-        # 
+         
         print(f"Box coordinates: ({x1}, {y1}, {x2}, {y2}), Region mean value: {region.mean().item()}")
 
-        #
-        region = region + epsilon * perturb_region  # 
-        region = region.clamp(0, 1)  # 
+        
+        region = region + epsilon * perturb_region   
+        region = region.clamp(0, 1)   
 
-        #
+        
         perturbed_image[:, :, y1:y2, x1:x2] = region
 
     return perturbed_image
@@ -296,32 +296,32 @@ def perturbation_on_bounding_boxes(generated_image, boxes, perturb_values, epsil
 def adjust_channels(feature, target_channels):
     current_channels = feature.size(1)
     if current_channels < target_channels:
-        # 
+         
         padding = target_channels - current_channels
         padding_tensor = torch.zeros(feature.size(0), padding, feature.size(2), feature.size(3), device=feature.device)
         feature = torch.cat([feature, padding_tensor], dim=1)
     elif current_channels > target_channels:
-        # 
+         
         feature = feature[:, :target_channels, :, :]
     return feature
 
     
 
-#
+
 def resize_feature_map(feature, target_height, target_width):
     return F.interpolate(feature, size=(target_height, target_width), mode='bilinear', align_corners=False)
 
-# 
+ 
 def ensure_4d(feature):
     if len(feature.shape) == 3:
-        feature = feature.unsqueeze(0)  #     return feature
+        feature = feature.unsqueeze(0) 
 
 
-#
+
 device = torch.device("cpu")
 maskrcnn = models.detection.maskrcnn_resnet50_fpn(pretrained=True)
-maskrcnn.eval()  # 
-maskrcnn = maskrcnn.to(device)  # 
+maskrcnn.eval()  
+maskrcnn = maskrcnn.to(device)  
 
 import torchvision.ops.boxes as box_ops
 
@@ -332,7 +332,7 @@ def preprocess_image(image, device):
     elif isinstance(image, torch.Tensor):
         return image.to(device)
     elif isinstance(image, list):
-        # 
+         
         return [img.to(device) for img in image]
     else:
         raise TypeError(f"Unsupported image type: {type(image)}")
@@ -345,27 +345,27 @@ def get_mask_from_boxes(image, model, score_threshold, device='cpu'):
     print(f"Inside get_mask_from_boxes - score_threshold: {score_threshold} (type: {type(score_threshold)})")
     print(f"Inside get_mask_from_boxes - device: {device} (type: {type(device)})")
 
-    # 
+     
     if isinstance(image, list):
         image = [img.cpu() for img in image]
     else:
         image = image.cpu()
 
-    # 
+     
     model = model.cpu()
 
-    # 
+     
     if isinstance(image, list):
         for idx, img in enumerate(image):
             print(f"image {idx} device: {img.device}")
     else:
         print(f"image device: {image.device}")
 
-    # 
+     
     model_device = next(model.parameters()).device
-    print(f"model device: {model_device}")  #
+    print(f"model device: {model_device}")  
 
-    # 
+     
     if isinstance(score_threshold, str):
         if score_threshold.isdigit() or score_threshold.replace('.', '', 1).isdigit():
             score_threshold = float(score_threshold)
@@ -375,50 +375,50 @@ def get_mask_from_boxes(image, model, score_threshold, device='cpu'):
     if not isinstance(score_threshold, (float, int)):
         raise TypeError(f"Expected score_threshold to be a float or int, but got {type(score_threshold)}")
 
-    # 
-    if isinstance(image, torch.Tensor) and len(image.shape) == 3:  # [C, H, W]
-        image = image.unsqueeze(0)  # 
+     
+    if isinstance(image, torch.Tensor) and len(image.shape) == 3:   [C, H, W]
+        image = image.unsqueeze(0)   
        with torch.no_grad():
-        predictions = model(image)  # 
-    #
-    boxes = predictions[0]['boxes']  #
-    scores = predictions[0]['scores']  # 
-    masks = predictions[0]['masks']  # 
+        predictions = model(image)   
+    
+    boxes = predictions[0]['boxes']  
+    scores = predictions[0]['scores']   
+    masks = predictions[0]['masks']   
 
-    # 
+     
     boxes_cpu = boxes.cpu()
     scores_cpu = scores.cpu()
     masks_cpu = masks.cpu()
     print(f"Prediction done. Boxes: {boxes.shape}, Scores: {scores.shape}, Masks: {masks.shape}")
 
-    # 
-    keep = scores_cpu > score_threshold  # 
+     
+    keep = scores_cpu > score_threshold   
 
-    # 
+     
     if keep.sum() == 0:
         print("No boxes passed the score threshold.")
         return []
 
-    # 
+     
     boxes_cpu = boxes_cpu[keep]
     masks_cpu = masks_cpu[keep]
 
-    # 
+     
     mask_list = []
     for idx in range(len(boxes_cpu)):
-        mask = masks_cpu[idx, 0]  #
-        mask = torch.sigmoid(mask)  # 
-        mask = mask > 0.4  # 
-        mask = mask.unsqueeze(0).unsqueeze(0)  #
-        # 
-        target_height, target_width = image.shape[2:]  # 
+        mask = masks_cpu[idx, 0]  
+        mask = torch.sigmoid(mask)   
+        mask = mask > 0.4   
+        mask = mask.unsqueeze(0).unsqueeze(0)  
+         
+        target_height, target_width = image.shape[2:]   
         mask = F.interpolate(
             mask.float(),
             size=(target_height, target_width),
             mode='bilinear',
             align_corners=False
         )
-        mask = mask.squeeze(0).squeeze(0)  # 
+        mask = mask.squeeze(0).squeeze(0)   
         mask_list.append(mask)
 
     print(f"Number of masks returned: {len(mask_list)}")
@@ -430,7 +430,7 @@ def box_count(image, box_size):
     count = 0
     for y in range(0, image.shape[0], box_size):
         for x in range(0, image.shape[1], box_size):
-            #
+            
             if np.any(image[y:y + box_size, x:x + box_size]):
                 count += 1
     return count
@@ -469,11 +469,11 @@ def calculate_fractal_dimension(image, box_sizes=None):
         print("Error: No valid data points after filtering.")
         return 0 
 
-    # 
+     
     log_box_sizes_std = np.std(log_box_sizes)
     log_counts_std = np.std(log_counts)
 
-    # 
+     
     if log_box_sizes_std > 0:
         log_box_sizes = (log_box_sizes - np.mean(log_box_sizes)) / log_box_sizes_std
     else:
@@ -484,10 +484,10 @@ def calculate_fractal_dimension(image, box_sizes=None):
     else:
         log_counts = log_counts - np.mean(log_counts)
 
-    # 
+     
     try:
-        p = np.polyfit(log_box_sizes, log_counts, 1)  # 
-        return p[0]  # 
+        p = np.polyfit(log_box_sizes, log_counts, 1)   
+        return p[0]   
     except np.linalg.LinAlgError:
         print("SVD did not converge. Trying with regularization...")
         
@@ -499,10 +499,10 @@ def calculate_fractal_dimension(image, box_sizes=None):
 
         if len(A) == 0 or len(log_counts) == 0:
             print("Error: No valid data points for lstsq.")
-            return 0  # 
+            return 0   
 
-        m, c = scipy.linalg.lstsq(A, log_counts)[0]  # 使用 scipy.linalg.lstsq
-        return m  # 
+        m, c = scipy.linalg.lstsq(A, log_counts)[0]   使用 scipy.linalg.lstsq
+        return m   
 
 
 def add_perturbation_to_brightness_in_masked_area(
@@ -517,74 +517,74 @@ def add_perturbation_to_brightness_in_masked_area(
     h_channel, s_channel, value_channel = cv2.split(generated_image_hsv)  
 
     if len(perturb_values) < len(mask_list):  
-        perturb_values = [0.05] * len(mask_list)  #  
+        perturb_values = [0.05] * len(mask_list)    
     elif len(perturb_values) > len(mask_list):  
-        perturb_values = perturb_values[:len(mask_list)]  # 
+        perturb_values = perturb_values[:len(mask_list)]   
 
-    # 
+     
     if not perturb_values:  
         print("Warning: perturb_values is empty, using default perturbation value.")  
-        perturb_values = [0.001] * len(mask_list)  # 
-    #
+        perturb_values = [0.001] * len(mask_list)   
+    
     def get_high_frequency_mask(image):  
-        gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)  # 转为灰度图  
+        gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)   转为灰度图  
         grad_x = cv2.Sobel(gray_image, cv2.CV_64F, 1, 0, ksize=3)  
         grad_y = cv2.Sobel(gray_image, cv2.CV_64F, 0, 1, ksize=3)  
-        grad_mag = cv2.magnitude(grad_x, grad_y)  # 
-        # 
-        high_freq_mask = grad_mag > np.percentile(grad_mag, 10)  #
+        grad_mag = cv2.magnitude(grad_x, grad_y)   
+         
+        high_freq_mask = grad_mag > np.percentile(grad_mag, 10)  
         return high_freq_mask.astype(np.uint8)  
 
     high_freq_mask = get_high_frequency_mask(generated_image_np)  
 
     value_channel_int = value_channel.astype(np.int32)  
-    max_brightness_value = 190  # 
+    max_brightness_value = 190   
     perturbation_value = int(epsilon * perturb_values[0] * 255)  
 
     for idx, mask in enumerate(mask_list):  
         mask = mask.bool()  
 
-        #   
-        if len(mask.shape) == 2:  #  
-            mask = mask.unsqueeze(0).unsqueeze(0)  # 
-        elif len(mask.shape) == 3:  # 
-            mask = mask.unsqueeze(0)  # 
+           
+        if len(mask.shape) == 2:    
+            mask = mask.unsqueeze(0).unsqueeze(0)   
+        elif len(mask.shape) == 3:   
+            mask = mask.unsqueeze(0)   
 
-        # 
+         
         mask_resized = torch.nn.functional.interpolate(  
-            mask.float(),  # 
+            mask.float(),   
             size=(value_channel.shape[0], value_channel.shape[1]),  
             mode='bilinear',  
             align_corners=False  
-        ).squeeze(0).squeeze(0) > 0.6  # 
+        ).squeeze(0).squeeze(0) > 0.6   
 
         if mask_resized.sum().item() == 0:  
             print(f"Mask {idx} is empty, skipping...")  
             continue  
 
-        #  
+          
         mask_np = mask_resized.cpu().numpy().astype(bool)  
         value_channel_int[mask_np] = np.clip(value_channel_int[mask_np] + perturbation_value * brightness_weight, 0, max_brightness_value)  
 
-        #
-        high_freq_area_in_mask = high_freq_mask.astype(bool) & mask_np  # 
+        
+        high_freq_area_in_mask = high_freq_mask.astype(bool) & mask_np   
         value_channel_int[high_freq_area_in_mask] = np.clip(value_channel_int[high_freq_area_in_mask] + perturbation_value * high_freq_weight, 0, max_brightness_value)  
 
-        #
+        
         fractal_dimension = calculate_fractal_dimension(generated_image_np)  
         if fractal_dimension is not None:  
             fractal_mask = mask_np & (fractal_dimension > 1.5)  
-            h_channel[fractal_mask] = (h_channel[fractal_mask] + perturbation_value * fractal_weight) % 180  #   
+            h_channel[fractal_mask] = (h_channel[fractal_mask] + perturbation_value * fractal_weight) % 180     
 
-        #   
+           
         if style_weight > 0:  
-            style_s_channel = calculate_gram_matrix(s_channel)  #  
+            style_s_channel = calculate_gram_matrix(s_channel)    
             s_channel[mask_np] = np.clip(  
                 (1 - style_weight) * s_channel[mask_np] + style_weight * style_s_channel[mask_np],  
                 0, 255  
             )  
 
-    #  
+      
     value_channel = value_channel_int.astype(np.uint8)  
     h_channel = h_channel.astype(np.uint8)  
     s_channel = s_channel.astype(np.uint8)  
@@ -640,10 +640,10 @@ def calculate_perturbation(generated_image, scaled_image, epsilon, device):
         align_corners=False
     )
 
-    #
+    
     l2_loss = F.mse_loss(generated_image, scaled_image_resized)
     
-    # 
+     
     perturbation = epsilon * l2_loss.item()
     
     return perturbation
@@ -660,9 +660,9 @@ def apply_scaled_perturbations(generated_image, perturb_values, mask_list, brigh
 
 def gram_matrix(x):
     b, c, h, w = x.size()
-    x = x.view(b, c, -1)  # 
-    gram = torch.bmm(x, x.transpose(1, 2))  # 
-    return gram / (c * h * w)  # 
+    x = x.view(b, c, -1)   
+    gram = torch.bmm(x, x.transpose(1, 2))   
+    return gram / (c * h * w)   
 
 def calculate_loss(generated_image, ref_image, gen_box, ref_box, lambda_inf, lambda_cosine, lambda_style=1.0, layers=None):
   
@@ -674,30 +674,30 @@ def calculate_loss(generated_image, ref_image, gen_box, ref_box, lambda_inf, lam
         ref_image = transforms.ToTensor()(ref_image).unsqueeze(0).to(generated_image.device)  
 
  
-    if generated_image.dim() == 3:  #
-        generated_image = generated_image.unsqueeze(0)  # 
+    if generated_image.dim() == 3:  
+        generated_image = generated_image.unsqueeze(0)   
 
-        if ref_image.dim() == 2:  # 
-        ref_image = ref_image.unsqueeze(0).unsqueeze(0)  # [1, 1, height, width]
+        if ref_image.dim() == 2:   
+        ref_image = ref_image.unsqueeze(0).unsqueeze(0)   [1, 1, height, width]
     elif ref_image.dim() == 3: 
-        ref_image = ref_image.unsqueeze(0)  # 
+        ref_image = ref_image.unsqueeze(0)   
     ref_image_resized = F.interpolate(ref_image, size=generated_image.shape[2:], mode='bilinear', align_corners=False)
 
  
 
 
-    # 
+     
     generated_image = generated_image.to(device)  
     ref_image = ref_image.to(device)  
     ref_image_resized = ref_image_resized.to(device)  
 
     l_inf_loss = torch.max(torch.abs(generated_image - ref_image_resized))
 
-    # 
-    generated_image_flat = generated_image.reshape(generated_image.size(0), -1)  #
-    ref_image_flat = ref_image_resized.reshape(ref_image_resized.size(0), -1)  # 
+     
+    generated_image_flat = generated_image.reshape(generated_image.size(0), -1)  
+    ref_image_flat = ref_image_resized.reshape(ref_image_resized.size(0), -1)   
     cosine_similarity = F.cosine_similarity(generated_image_flat, ref_image_flat, dim=1)
-    cosine_loss = 1 - cosine_similarity.mean()  # 
+    cosine_loss = 1 - cosine_similarity.mean()   
 
     style_loss = 0
     if layers is not None:
@@ -739,41 +739,41 @@ def perturbation_until_target_confidence(
     args,
     yolo_model,
     ref_image,
-    brightness_weight=0.5,  # 
+    brightness_weight=0.5,   
     high_freq_weight=0.8,
-    fractal_weight=0.8     # 
+    fractal_weight=0.8      
 ):
 
     if isinstance(generated_image, Image.Image):
         generated_image = transforms.ToTensor()(generated_image).unsqueeze(0).to("cpu")
     else:
-        generated_image = generated_image.to("cpu")  # 
+        generated_image = generated_image.to("cpu")   
 
     clean_image_pil = transforms.ToPILImage()(generated_image.squeeze(0).cpu())
     clean_image_pil.save("clean_image.png")
 
     original_clean_image = generated_image.clone()
 
-    generated_image.requires_grad_()  # 
+    generated_image.requires_grad_()   
 
-    device = 'cpu'  # 
+    device = 'cpu'   
     swin_model, preprocess = load_swin_model(device=device)
 
     optimizer = torch.optim.Adam([generated_image], lr=0.01)
 
-    #
+    
     ref_boxes = get_yolov5_boxes(ref_image, yolo_model)
     original_boxes = get_yolov5_boxes(generated_image, yolo_model)
 
-    # 
+     
     scaled_images = scale_invariant_target_image(ref_image, scales=[0.3, 0.5, 0.8, 1.0])
 
-    #
+    
     diffusion_steps = 50
     lambda_inf = 20
     lambda_cosine = 20
     epsilon = 0.03
-    current_confidence = 0.0  #
+    current_confidence = 0.0  
     step = 0
     perturb_start_step = int(diffusion_steps * 0.9)
     lambda_style=20
@@ -788,30 +788,30 @@ def perturbation_until_target_confidence(
             target_confidence = 0.7
         
         current_confidence += 0.000001
-        generated_image.requires_grad_()  # Ensure gradient tracking is enabled for the generated image
+        generated_image.requires_grad_()   Ensure gradient tracking is enabled for the generated image
         
         if step >= perturb_start_step:
           
-            score_threshold = 0.3  #
+            score_threshold = 0.3  
             print(f"score_threshold: {score_threshold} (type: {type(score_threshold)})")
             print(f"device: {device} (type: {type(device)})")
             
-            generated_image = generated_image.to(device)  # 
+            generated_image = generated_image.to(device)   
             mask_list = get_mask_from_boxes(generated_image, maskrcnn, score_threshold=score_threshold, device=device) 
             perturb_values = [random.uniform(1, 5) for _ in mask_list]
             
-            # Add perturbation to brightness in the masked area
+             Add perturbation to brightness in the masked area
             generated_image = add_perturbation_to_brightness_in_masked_area(
                 generated_image, perturb_values, original_boxes, epsilon, device, mask_list, brightness_weight=brightness_weight, fractal_weight=fractal_weight, high_freq_weight=high_freq_weight
             )
             
             generated_image = generated_image.clamp(0, 255)
             
-            # Show perturbed image every 10 steps
+             Show perturbed image every 10 steps
             if step % 5 == 0:
-                # Ensure generated image is on CPU and properly formatted
+                 Ensure generated image is on CPU and properly formatted
                 generated_image_np = generated_image.detach().cpu().numpy()
-                if len(generated_image_np.shape) == 4:  # [B, C, H, W]
+                if len(generated_image_np.shape) == 4:   [B, C, H, W]
                     generated_image_np = generated_image_np[0]
                 generated_image_np = np.transpose(generated_image_np, (1, 2, 0))
                 if generated_image_np.max() <= 1.0:
@@ -819,27 +819,27 @@ def perturbation_until_target_confidence(
                 else:
                     generated_image_np = np.clip(generated_image_np, 0, 255).astype(np.uint8)
                 
-                # Display the perturbed image
+                 Display the perturbed image
                 plt.figure(figsize=(6, 6))
                 plt.imshow(generated_image_np)
                 plt.axis('off')
                 plt.title(f"Step {step}: Perturbed Image")
                 plt.show()
             
-            # 使用不同尺度的参考图像与生成图像计算扰动值
+             使用不同尺度的参考图像与生成图像计算扰动值
             perturb_values = []
             for scaled_image in scaled_images:
                 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
                 perturb_values.append(calculate_perturbation(generated_image, scaled_image, epsilon, device))
     
             
-            # 
+             
             generated_image = apply_scaled_perturbations(generated_image, perturb_values, mask_list, brightness_weight, high_freq_weight, fractal_weight)
             generated_image = generated_image.clamp(0, 255)
             
-                        # 
+                         
             if isinstance(ref_image, Image.Image):
-                transform = transforms.ToTensor()  # 
+                transform = transforms.ToTensor()   
                 ref_image = transform(ref_image)
             
            
@@ -855,10 +855,10 @@ def perturbation_until_target_confidence(
                 raise TypeError(f"Unsupported type for generated_image: {type(generated_image)}")
             
                      for i in range(len(images)):
-                if len(images[i].shape) == 2:  # 
+                if len(images[i].shape) == 2:   
                     print(f"Converting image {i} from gray to RGB format.")
-                    images[i] = images[i].unsqueeze(0)  # 
-                    images[i] = images[i].repeat(3, 1, 1)  # 
+                    images[i] = images[i].unsqueeze(0)   
+                    images[i] = images[i].repeat(3, 1, 1)   
             
 
             for img in images:
@@ -866,7 +866,7 @@ def perturbation_until_target_confidence(
                     raise ValueError(f"Each image must have shape [3, H, W], but got {img.shape}")
             
 
-            #mask_list = get_mask_from_boxes(images, maskrcnn, device)
+            mask_list = get_mask_from_boxes(images, maskrcnn, device)
             
             mask_list = get_mask_from_boxes(generated_image, maskrcnn, score_threshold=score_threshold, device=device) 
  
@@ -879,7 +879,7 @@ def perturbation_until_target_confidence(
                 print("Detections:", detections)
             
 
-                default_mask = torch.zeros_like(images[0][0], device=device)  # 
+                default_mask = torch.zeros_like(images[0][0], device=device)   
                 mask_list = [default_mask]
                 print("Using default mask as fallback.")
             else:
@@ -889,7 +889,7 @@ def perturbation_until_target_confidence(
   
             mask = mask.to('cpu')
             generated_image = generated_image.to('cpu')
-            mask = mask.unsqueeze(0).repeat(3, 1, 1)  # [3, H, W]
+            mask = mask.unsqueeze(0).repeat(3, 1, 1)   [3, H, W]
                         
             masked_generated_image = generated_image * mask
             
@@ -903,15 +903,15 @@ def perturbation_until_target_confidence(
             perturbation_signal = masked_generated_image - masked_ref_image              
             
             
-            perturbation_signal = perturbation_signal.detach().cpu().numpy()  # 
-            if len(perturbation_signal.shape) == 4:  #
+            perturbation_signal = perturbation_signal.detach().cpu().numpy()   
+            if len(perturbation_signal.shape) == 4:  
                 perturbation_signal = perturbation_signal[0]
-            perturbation_signal = np.transpose(perturbation_signal, (1, 2, 0))  #
+            perturbation_signal = np.transpose(perturbation_signal, (1, 2, 0))  
             
-            # 
+             
             perturbation_signal = (perturbation_signal - perturbation_signal.min()) / (perturbation_signal.max() - perturbation_signal.min())
             
-            # 
+             
             plt.figure(figsize=(6, 6))
             plt.imshow(perturbation_signal)
             plt.axis('off')
@@ -919,28 +919,28 @@ def perturbation_until_target_confidence(
             plt.show()
 
     
-            # 
-            if step == 1:  # Only set once at the start
+             
+            if step == 1:   Only set once at the start
                 generated_image.requires_grad_()
             
-            # 
+             
             total_loss = torch.zeros((), device=device)
             
             for gen_box, ref_box in zip(original_boxes, ref_boxes):
-                # 
+                 
                 
                 l_inf_loss, cosine_loss, total_loss, style_loss = calculate_loss(generated_image, ref_image, gen_box, ref_box, lambda_inf, lambda_cosine, layers=None)
     
-                #total_loss += l_inf_loss + cosine_loss
+                total_loss += l_inf_loss + cosine_loss
                 total_loss = lambda_inf * l_inf_loss + lambda_cosine * cosine_loss + lambda_style * style_loss
     
             
-            #
+            
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
             
-            # 
+             
             current_confidence += min(0.001, total_loss / 100000.0)
     
             print(f"Step {step}/{diffusion_steps}, current confidence: {current_confidence:.4f}")
@@ -996,21 +996,21 @@ def perturbation_until_target_confidence(
     
 
     if hasattr(yolo_results, "boxes") and yolo_results.boxes is not None:
-        detected_boxes = yolo_results.boxes.xyxy.cpu().numpy()  # 
+        detected_boxes = yolo_results.boxes.xyxy.cpu().numpy()   
         boxes = yolo_results.boxes
-        confidences = boxes.conf  # 
+        confidences = boxes.conf   
         
     elif hasattr(yolo_results, "pred") and len(yolo_results.pred) > 0:
         detected_boxes = yolo_results.pred[0].cpu().numpy()
     
     
     if detected_boxes is not None and len(detected_boxes) > 0:
-        print("Detected boxes:", detected_boxes)  # 输出检测框信息
+        print("Detected boxes:", detected_boxes)   输出检测框信息
         formatted_boxes = []
         
                 for box in boxes:
-            x1, y1, x2, y2, conf, cls = box  # 
-            class_name = names[int(cls)]  # 
+            x1, y1, x2, y2, conf, cls = box   
+            class_name = names[int(cls)]   
             
         
             print(f"Box coordinates: ({x1}, {y1}), ({x2}, {y2}) with confidence {conf} for class {class_name}")
@@ -1028,39 +1028,37 @@ def perturbation_until_target_confidence(
 
     if isinstance(ref_image, torch.Tensor):
 
-        ref_image_tensor = ref_image.unsqueeze(0)  # 形状变为 [1, C, H, W]
+        ref_image_tensor = ref_image.unsqueeze(0)   形状变为 [1, C, H, W]
     else:
-                ref_image_tensor = transforms.ToTensor()(ref_image).unsqueeze(0)  #     
+                ref_image_tensor = transforms.ToTensor()(ref_image).unsqueeze(0)       
 
     print("ref_image_tensor dimensions:", ref_image_tensor.shape)
     
   
     if ref_image_tensor.ndimension() == 5:
-        ref_image_tensor = ref_image_tensor.squeeze(0)  # 
-        ref_image_tensor = ref_image_tensor.squeeze(0)  # 
+        ref_image_tensor = ref_image_tensor.squeeze(0)   
+        ref_image_tensor = ref_image_tensor.squeeze(0)   
     
-    # 
+     
     elif ref_image_tensor.ndimension() == 4:
-        ref_image_tensor = ref_image_tensor.squeeze(0)  # 去掉批次维度，变为 [C, H, W]
+        ref_image_tensor = ref_image_tensor.squeeze(0)   
     
-    # 检查维度
+     检查维度
     if ref_image_tensor.ndimension() not in [2, 3]:
         raise ValueError(f"Invalid tensor dimension: {ref_image_tensor.ndimension()}. Expected 2 or 3 dimensions.")
 
     
-    # 转换为 PIL 图像
     ref_image_pil = transforms.ToPILImage()(ref_image_tensor)
     
     
     
-    # 假设 clean_image_pil 和 generated_image_pil 已经是 PIL 图像
-    axes[0].imshow(clean_image_pil)  # 这里假设 clean_image_pil 已定义
+    axes[0].imshow(clean_image_pil)   
     axes[0].set_title("Clean Image")
     
-    axes[1].imshow(np.array(ref_image_pil))  # 将 ref_image_tensor 转换为 PIL 后显示
-    axes[1].set_title("Reference Image")
+axes[1].imshow(np.array(ref_image_pil))   
+axes[1].set_title("Reference Image")
     
-    axes[2].imshow(np.array(generated_image_pil))  # 这里假设 generated_image_pil 已定义
+    axes[2].imshow(np.array(generated_image_pil))   
     axes[2].set_title("Generated Image")
     
     
@@ -1069,14 +1067,14 @@ def perturbation_until_target_confidence(
     return  current_confidence
 
 
-# 设置种子
+ 设置种子
 def set_seed(seed):
-    torch.cuda.manual_seed(seed)  # 如果使用GPU
-    torch.backends.cudnn.deterministic = True  # 确保每次计算的结果是一样的
-    torch.backends.cudnn.benchmark = False  # 关闭自动优化算法
-# 主函数
+    torch.cuda.manual_seed(seed)   
+    torch.backends.cudnn.deterministic = True   
+    torch.backends.cudnn.benchmark = False   
+ 主函数
 def main():
-    # 解析命令行参数
+     解析命令行参数
     parser = argparse.ArgumentParser()
     parser.add_argument('--res', default=512, type=int, help='Input image resized resolution')
     parser.add_argument('--save_dir', default="output", type=str, help='Where to save the generated images')
@@ -1087,60 +1085,60 @@ def main():
     parser.add_argument('--target_text', type=str, required=True, help="Target text description for the perturbation")
     parser.add_argument('--perturb_steps', default=400, type=int, help='Number of perturbation steps')  
     parser.add_argument('--target_confidence', default=0.8, type=float, help="Target confidence threshold")
-    parser.add_argument('--epsilon', default=0.01, type=float, help="Perturbation strength")  # 
-    parser.add_argument('--perturb_start_step', default=100, type=int, help="Starting step for applying perturbations")  # 
-    parser.add_argument('--transparency_factor', default=1, type=float, help="Transparency factor for blending")  #
-    parser.add_argument('--lambda_inf', default=20, type=float, help="Weight for L2 loss in the perturbation")  # 
-    parser.add_argument('--lambda_cosine', default=20, type=float, help="Weight for cosine similarity loss in the perturbation")  # 
-    parser.add_argument('--lambda_style', default=20, type=float, help=" Weight for style loss in the perturbation")  # 
-    #parser.add_argument('--A', default=200, type=float, help="Weight for jiaocha loss in the perturbation")  # 
-    #parser.add_argument('--brightness_weight', default=0.5, type=float, help="Weight loss in the perturbation")  # 
-    #parser.add_argument('--high_freq_weight', default=0.5, type=float, help="Weight loss in the perturbation")  # 
-    #parser.add_argument('--seed', default=10, type=int, help="Random seed for reproducibility")  # 添加随机种子参数
-    args = parser.parse_args()  # 
-    #set_seed(args.seed)
+    parser.add_argument('--epsilon', default=0.01, type=float, help="Perturbation strength")   
+    parser.add_argument('--perturb_start_step', default=100, type=int, help="Starting step for applying perturbations")   
+    parser.add_argument('--transparency_factor', default=1, type=float, help="Transparency factor for blending")  
+    parser.add_argument('--lambda_inf', default=20, type=float, help="Weight for L2 loss in the perturbation")   
+    parser.add_argument('--lambda_cosine', default=20, type=float, help="Weight for cosine similarity loss in the perturbation")   
+    parser.add_argument('--lambda_style', default=20, type=float, help=" Weight for style loss in the perturbation")   
+    parser.add_argument('--A', default=200, type=float, help="Weight for jiaocha loss in the perturbation")   
+    parser.add_argument('--brightness_weight', default=0.5, type=float, help="Weight loss in the perturbation")   
+    parser.add_argument('--high_freq_weight', default=0.5, type=float, help="Weight loss in the perturbation")   
+    parser.add_argument('--seed', default=10, type=int, help="Random seed for reproducibility")   添加随机种子参数
+    args = parser.parse_args()   
+    set_seed(args.seed)
 
-    # 加载模型并设置调度器
+     加载模型并设置调度器
     sd_pipe = StableDiffusionPipeline.from_pretrained(args.pretrained_diffusion_path, torch_dtype=torch.float16).to("cuda")
     sd_pipe.scheduler = DDIMScheduler.from_config(sd_pipe.scheduler.config)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    set_seed(11)  #45cat    
+    set_seed(11)  45cat    
 
     generated_image = sd_pipe(prompt=args.prompt, guidance_scale=args.guidance_scale, num_inference_steps=int(args.diffusion_steps)).images[0]
 
-    set_seed(50)   #50dog 18eagle 45 fish 5chicken 5A colorful butterfly spread wings
+    set_seed(50)   50dog 18eagle 45 fish 5chicken 5A colorful butterfly spread wings
 
     ref_image = sd_pipe(prompt=args.target_text, guidance_scale=args.guidance_scale, num_inference_steps=int(args.diffusion_steps)).images[0]  
 
-    # 获取 CLIP 模型
-    clip_model, clip_processor = get_clip_model(sd_pipe)  # 传递 sd_pipe
-    yolo_model = YOLO('yolo5/yolov5su.pt')  # 
+    
+    clip_model, clip_processor = get_clip_model(sd_pipe)   
+    yolo_model = YOLO('yolo5/yolov5su.pt')   
 
 
-    # 加载 ViT 模型
+   
     swin_model, preprocess = load_swin_model(device='cuda')
 
 
     final_confidence = perturbation_until_target_confidence(
         generated_image,
         args.target_text,
-        args.target_confidence,  # 
-        args.perturb_steps,  # 
+        args.target_confidence,   
+        args.perturb_steps,   
         args.diffusion_steps,
         clip_model,
         clip_processor,
-        swin_model,  # 
+        swin_model,   
         preprocess,
-        args.epsilon,  # 
-        args.lambda_inf,  # 
-        args.lambda_cosine,  # 
+        args.epsilon,   
+        args.lambda_inf,   
+        args.lambda_cosine,   
         args.lambda_style,
-        args.perturb_start_step,  # 
-        args.transparency_factor,  # 
-        args,  # 传递 args
-        sd_pipe,  #
+        args.perturb_start_step,   
+        args.transparency_factor,   
+        args,   
+        sd_pipe,  
         yolo_model,
         ref_image,
     )
